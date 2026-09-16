@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chopra Customer Connect — Meta Business Authorization</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f5f7fb;
+      color: #172033;
+    }
+    .wrap {
+      max-width: 900px;
+      margin: 48px auto;
+      padding: 0 20px 60px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e3e7ef;
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 10px 30px rgba(16, 24, 40, 0.06);
+    }
+    h1 { margin: 0 0 8px; font-size: 30px; }
+    .sub { color: #566174; margin: 0 0 28px; line-height: 1.55; }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin: 24px 0;
+    }
+    .step {
+      border: 1px solid #e5e9f0;
+      border-radius: 12px;
+      padding: 18px;
+      min-height: 128px;
+    }
+    .num { font-size: 12px; font-weight: 700; letter-spacing: .08em; color: #64748b; }
+    .step h2 { font-size: 18px; margin: 8px 0 6px; }
+    .step p { margin: 0; color: #667085; line-height: 1.45; font-size: 14px; }
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 13px 20px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #1877f2;
+      color: #fff;
+    }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .status {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      color: #334155;
+    }
+    .status.error {
+      background: #fff7f7;
+      border-color: #f4c7c7;
+      color: #8a1c1c;
+    }
+    .success {
+      display: none;
+      margin-top: 24px;
+      border: 1px solid #b7e4c7;
+      background: #f4fbf6;
+      border-radius: 12px;
+      padding: 22px;
+    }
+    .success h2 { margin: 0 0 16px; font-size: 22px; }
+    .row {
+      display: grid;
+      grid-template-columns: 210px 1fr;
+      gap: 12px;
+      padding: 9px 0;
+      border-top: 1px solid #dcefe2;
+    }
+    .row:first-of-type { border-top: 0; }
+    .label { color: #52606d; }
+    .value { font-weight: 700; word-break: break-word; }
+    .note { margin-top: 26px; color: #667085; font-size: 13px; line-height: 1.5; }
+    @media (max-width: 720px) {
+      .steps { grid-template-columns: 1fr; }
+      .row { grid-template-columns: 1fr; gap: 3px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="fb-root"></div>
+
+  <main class="wrap">
+    <section class="card">
+      <h1>Chopra Customer Connect</h1>
+      <p class="sub">
+        Meta Business Authorization — App Review Demonstration<br>
+        This page demonstrates how an authorized Chopra Enterprises administrator grants
+        <strong>business_management</strong> and how the app loads the authorized Meta Business.
+      </p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="num">STEP 1</div>
+          <h2>Connect Meta Business</h2>
+          <p>Start Meta's official authorization flow.</p>
+        </div>
+        <div class="step">
+          <div class="num">STEP 2</div>
+          <h2>Grant Business Access</h2>
+          <p>Select Chopra Enterprises and approve “Manage your business”.</p>
+        </div>
+        <div class="step">
+          <div class="num">STEP 3</div>
+          <h2>Load Authorized Business</h2>
+          <p>The app verifies the permission and loads the authorized business.</p>
+        </div>
+      </div>
+
+      <button id="connectBtn" type="button" disabled>Connect Meta Business</button>
+      <div id="status" class="status" role="status" aria-live="polite">Loading Meta JavaScript SDK…</div>
+
+      <section id="successPanel" class="success" aria-live="polite">
+        <h2>Meta authorization completed successfully.</h2>
+        <div class="row">
+          <div class="label">Permission</div>
+          <div class="value">business_management — Granted</div>
+        </div>
+        <div class="row">
+          <div class="label">Authorized Meta Business</div>
+          <div class="value">Chopra Enterprises</div>
+        </div>
+        <div class="row">
+          <div class="label">Business ID</div>
+          <div class="value">1539851621504586</div>
+        </div>
+        <div class="row">
+          <div class="label">Access</div>
+          <div class="value">Authorized</div>
+        </div>
+      </section>
+
+      <p class="note">
+        Security note: this demonstration never displays or logs an access token or App Secret.
+        Authorization is handled by Meta's JavaScript SDK.
+      </p>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const APP_ID = '27065210169819494';
+      const GRAPH_VERSION = 'v26.0';
+      const EXPECTED_BUSINESS_ID = '1539851621504586';
+      const EXPECTED_BUSINESS_NAME = 'Chopra Enterprises';
+
+      const connectBtn = document.getElementById('connectBtn');
+      const statusBox = document.getElementById('status');
+      const successPanel = document.getElementById('successPanel');
+
+      function setStatus(message, isError) {
+        statusBox.textContent = message;
+        statusBox.className = isError ? 'status error' : 'status';
+      }
+
+      function resetSuccess() {
+        successPanel.style.display = 'none';
+      }
+
+      function showSuccess() {
+        setStatus('Authorization verified.');
+        successPanel.style.display = 'block';
+      }
+
+      function finishWithError(message) {
+        connectBtn.disabled = false;
+        setStatus(message, true);
+      }
+
+      function verifyPermissionAndBusiness() {
+        setStatus('Checking business_management permission…');
+
+        FB.api('/me/permissions', 'GET', function (permissionsResponse) {
+          if (!permissionsResponse || permissionsResponse.error || !Array.isArray(permissionsResponse.data)) {
+            finishWithError('Could not verify business_management. Please try the authorization again.');
+            return;
+          }
+
+          const permissionGranted = permissionsResponse.data.some(function (item) {
+            return item && item.permission === 'business_management' && item.status === 'granted';
+          });
+
+          if (!permissionGranted) {
+            finishWithError('business_management permission was not granted.');
+            return;
+          }
+
+          setStatus('Permission granted. Loading the authorized Meta Business…');
+
+          FB.api('/me/businesses', 'GET', { fields: 'id,name' }, function (businessResponse) {
+            connectBtn.disabled = false;
+
+            if (!businessResponse || businessResponse.error || !Array.isArray(businessResponse.data)) {
+              finishWithError('Could not load the authorized Meta Business. Please try again.');
+              return;
+            }
+
+            const expectedBusiness = businessResponse.data.find(function (business) {
+              return business && business.id === EXPECTED_BUSINESS_ID && business.name === EXPECTED_BUSINESS_NAME;
+            });
+
+            if (!expectedBusiness) {
+              finishWithError('Chopra Enterprises was not returned as an authorized Meta Business.');
+              return;
+            }
+
+            showSuccess();
+          });
+        });
+      }
+
+      window.fbAsyncInit = function () {
+        FB.init({
+          appId: APP_ID,
+          cookie: true,
+          xfbml: false,
+          version: GRAPH_VERSION
+        });
+
+        connectBtn.disabled = false;
+        setStatus('Ready. Click “Connect Meta Business” to begin.');
+      };
+
+      connectBtn.addEventListener('click', function () {
+        resetSuccess();
+        connectBtn.disabled = true;
+        setStatus('Waiting for Meta authorization…');
+
+        FB.login(function (response) {
+          if (!response || !response.authResponse) {
+            finishWithError('Meta authorization was not completed. Please try again.');
+            return;
+          }
+
+          // Deliberately do not display, store, or log response.authResponse/accessToken.
+          verifyPermissionAndBusiness();
+        }, {
+          scope: 'business_management',
+          auth_type: 'rerequest',
+          return_scopes: true
+        });
+      });
+
+      const sdk = document.createElement('script');
+      sdk.async = true;
+      sdk.defer = true;
+      sdk.crossOrigin = 'anonymous';
+      sdk.src = 'https://connect.facebook.net/en_US/sdk.js';
+      sdk.onerror = function () {
+        finishWithError('Meta JavaScript SDK could not be loaded. Please refresh the page and try again.');
+      };
+      document.body.appendChild(sdk);
+    })();
+  </script>
+</body>
+</html>
