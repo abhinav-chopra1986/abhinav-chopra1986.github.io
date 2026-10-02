@@ -63,11 +63,15 @@
   const META_CONFIG_ID = "1500428031891785";
   const BACKEND = "https://chopra-backend.onrender.com";
 
+  const STATE_KEY = "chopra_whatsapp_embedded_signup_pending_v2";
+  const STATE_TTL_MS = 10 * 60 * 1000;
+
   let sdkReady = false;
   let loginCode = "";
   let sessionInfo = null;
   let finalizeTimer = null;
   let finalizing = false;
+  let waitStartedAt = 0;
 
   const button = document.getElementById("connect");
   const statusBox = document.getElementById("status");
@@ -76,6 +80,45 @@
     statusBox.textContent = text;
     statusBox.classList.remove("ok", "bad");
     if (kind) statusBox.classList.add(kind);
+  }
+
+  function clearPendingState() {
+    try {
+      sessionStorage.removeItem(STATE_KEY);
+    } catch (_) {}
+  }
+
+  function savePendingState() {
+    try {
+      sessionStorage.setItem(
+        STATE_KEY,
+        JSON.stringify({
+          loginCode: loginCode || "",
+          sessionInfo: sessionInfo || null,
+          savedAt: Date.now()
+        })
+      );
+    } catch (_) {}
+  }
+
+  function restorePendingState() {
+    try {
+      const raw = sessionStorage.getItem(STATE_KEY);
+      if (!raw) return;
+
+      const state = JSON.parse(raw);
+      const savedAt = Number(state?.savedAt || 0);
+
+      if (!savedAt || (Date.now() - savedAt) > STATE_TTL_MS) {
+        clearPendingState();
+        return;
+      }
+
+      loginCode = String(state?.loginCode || "");
+      sessionInfo = state?.sessionInfo || null;
+    } catch (_) {
+      clearPendingState();
+    }
   }
 
   function isFacebookOrigin(origin) {
@@ -87,6 +130,8 @@
       return false;
     }
   }
+
+  restorePendingState();
 
   window.addEventListener("message", function (event) {
     if (!isFacebookOrigin(event.origin)) return;
@@ -105,12 +150,15 @@
       data.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING"
     ) {
       sessionInfo = data.data || {};
-      setStatus("Meta signup finished. Securing the connection with the Chopra backend…");
+      savePendingState();
+      waitStartedAt = 0;
+      setStatus("Meta signup finished. Securing the connection with the Chopra backend...");
       scheduleFinalize();
       return;
     }
 
     if (data.event === "ERROR") {
+      clearPendingState();
       setStatus(
         "Meta reported an Embedded Signup error:\n" +
         (data.data?.error_message || "Unknown error"),
@@ -121,6 +169,7 @@
     }
 
     if (data.event === "CANCEL") {
+      clearPendingState();
       setStatus(
         "Signup was cancelled at: " +
         (data.data?.current_step || "an unknown step") +
@@ -131,7 +180,40 @@
     }
   });
 
-  window.fbAsyncInit = function () {
+  async function showExistingBackendConnection() {
+    try {
+      const response = await fetch(
+        BACKEND + "/api/meta/whatsapp/embedded-signup/status",
+        { method: "GET", cache: "no-store" }
+      );
+
+      if (!response.ok) return false;
+
+      const body = await response.json();
+
+      if (body?.connected === true) {
+        clearPendingState();
+        button.disabled = true;
+
+        setStatus(
+          "CONNECTED SUCCESSFULLY\n\n" +
+          "Number: " + (body.displayPhoneNumber || "-") + "\n" +
+          "Verified name: " + (body.verifiedName || "-") + "\n" +
+          "WABA ID: " + (body.wabaId || "-") + "\n" +
+          "Phone Number ID: " + (body.phoneNumberId || "-") + "\n" +
+          "Coexistence (is_on_biz_app): " + String(body.isOnBizApp === true) + "\n" +
+          "Platform: " + (body.platformType || "-"),
+          "ok"
+        );
+
+        return true;
+      }
+    } catch (_) {}
+
+    return false;
+  }
+
+  window.fbAsyncInit = async function () {
     FB.init({
       appId: META_APP_ID,
       cookie: true,
@@ -140,7 +222,18 @@
     });
 
     sdkReady = true;
-    setStatus("Ready. Press the blue button to start Meta's official signup.");
+
+    if (loginCode || sessionInfo) {
+      button.disabled = true;
+      setStatus("Recovered pending Meta signup. Completing the backend connection...");
+      scheduleFinalize();
+      return;
+    }
+
+    const alreadyConnected = await showExistingBackendConnection();
+    if (!alreadyConnected) {
+      setStatus("Ready. Press the blue button to start Meta's official signup.");
+    }
   };
 
   (function (d, s, id) {
@@ -157,16 +250,30 @@
 
   function scheduleFinalize() {
     clearTimeout(finalizeTimer);
-    finalizeTimer = setTimeout(tryFinalize, 250);
+    finalizeTimer = setTimeout(tryFinalize, 300);
   }
 
   async function tryFinalize() {
     if (finalizing) return;
+
     if (!loginCode || !sessionInfo) {
+      if (!waitStartedAt) waitStartedAt = Date.now();
+
+      if ((Date.now() - waitStartedAt) > 30000) {
+        button.disabled = false;
+        setStatus(
+          "Meta signup returned only part of the completion data.\n\n" +
+          "Nothing has been saved to the backend. Press the blue button to run the authorization again.",
+          "bad"
+        );
+        return;
+      }
+
       scheduleFinalize();
       return;
     }
 
+    waitStartedAt = 0;
     finalizing = true;
     button.disabled = true;
 
@@ -196,6 +303,8 @@
         throw new Error(body.message || text || ("HTTP " + response.status));
       }
 
+      clearPendingState();
+
       const expiry = body.tokenExpiresAt
         ? new Date(body.tokenExpiresAt).toLocaleString()
         : "Meta did not return an expiry";
@@ -213,12 +322,13 @@
         "ok"
       );
     } catch (err) {
+      clearPendingState();
       finalizing = false;
       button.disabled = false;
       setStatus(
         "Connection was NOT saved.\n\n" +
         (err?.message || String(err)) +
-        "\n\nFix the issue and run the signup again.",
+        "\n\nThe Meta assets are not being changed by this error. Fix the issue and run the authorization again.",
         "bad"
       );
     }
@@ -230,22 +340,27 @@
       return;
     }
 
+    clearPendingState();
     loginCode = "";
     sessionInfo = null;
     finalizing = false;
+    waitStartedAt = 0;
     button.disabled = true;
 
-    setStatus("Opening Meta Embedded Signup…");
+    setStatus("Opening Meta Embedded Signup...");
 
     FB.login(
       function (response) {
         if (response && response.authResponse && response.authResponse.code) {
           loginCode = response.authResponse.code;
-          setStatus("Authorization received. Waiting for Meta signup details…");
+          savePendingState();
+          waitStartedAt = 0;
+          setStatus("Authorization received. Waiting for Meta signup details...");
           scheduleFinalize();
           return;
         }
 
+        clearPendingState();
         button.disabled = false;
         setStatus(
           "Meta login did not return an authorization code. If you cancelled, press the button to try again.",
